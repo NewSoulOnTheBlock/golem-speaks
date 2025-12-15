@@ -19,6 +19,6 @@
     "@opensouls/engine": "workspace:*"
   },
   "soulEngine": {
-    "defaultModel": "fast"
+    "defaultModel": "gpt-5-mini"
   }
 }
