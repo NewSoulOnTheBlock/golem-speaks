@@ -29,22 +29,19 @@ export function ChatInput({
 
   return (
     <Box className="flex w-full gap-2 items-center">
-      <TextField.Root className="flex-1">
-        {/* Radix Themes v3 has some bundler quirks around TextField.Input; keep it simple. */}
-        <input
-          className="rt-TextFieldInput"
-          value={text}
-          placeholder={placeholder}
-          disabled={disabled || isSending}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter") return;
-            if (e.shiftKey) return;
-            e.preventDefault();
-            void send();
-          }}
-        />
-      </TextField.Root>
+      <TextField.Root className="flex-1"
+        value={text}
+        placeholder={placeholder}
+        disabled={disabled || isSending}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          if (e.shiftKey) return;
+          e.preventDefault();
+          void send();
+        }}
+      
+      />
 
       <Button
         disabled={disabled || isSending || text.trim().length === 0}

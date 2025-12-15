@@ -141,6 +141,7 @@ function TanakiExperience() {
           position={[0, 0, 0]}
           animationName="Tanaki_Floating_idle_117"
           hideNodes={[...hideNodes]}
+          // @ts-expect-error materialOverride is not typed
           materialOverride={[...materialOverride]}
         />
       </Scene>
