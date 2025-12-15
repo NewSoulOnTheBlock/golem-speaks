@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "setup": "bun run opensouls/scripts/setupRepo.ts",
+    "start": "bun run --cwd opensouls start",
     "dev:ui": "bun run --cwd opensouls/packages/soul-engine-ui dev",
     "dev:cloud": "bun run --cwd opensouls/packages/soul-engine-cloud dev",
     "dev:docs": "bun run --cwd opensouls/packages/beta-docs dev"
