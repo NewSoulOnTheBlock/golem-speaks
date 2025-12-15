@@ -56,7 +56,7 @@ async function handleTts(req: Request): Promise<Response> {
 
   const text = typeof (body as any)?.text === "string" ? (body as any).text : "";
   const voice =
-    typeof (body as any)?.voice === "string" ? (body as any).voice : "nova";
+    typeof (body as any)?.voice === "string" ? (body as any).voice : "shimmer";
 
   const trimmed = text.trim();
   if (!trimmed) {
@@ -70,7 +70,9 @@ async function handleTts(req: Request): Promise<Response> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      instructions: "Speak as a Japanese schoolgirl who is not a native English speaker, using a strong Japanese accent. Make sure the tone is cheerful, friendly, and emotive. Speak quickly and keep each response short, using simple vocabulary and sentence structures common among English learners. Responses should sound organic and natural for a Japanese schoolgirl speaking English as a second language.",
+      instructions: `
+You are a native japanese and swedish speaker, with a mix of both accents. Your voice bounces with enthusiasm, hitting high notes that make children giggle. You occasionally sprinkle in gentle words like "ne?" and "ja!" in your sentences to hint at your Japanese and Swedish origins. Your Japanese accent adds a musical quality to English words, making them sound like little songs.
+      `.trim(),
       model: "gpt-4o-mini-tts",
       voice,
       input: trimmed,

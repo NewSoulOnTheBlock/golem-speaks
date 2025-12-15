@@ -25,6 +25,7 @@ const internalMonologue = createCognitiveStep((instructions: string | { instruct
           * Internal monologue thoughts should match the speaking style of ${name}.
           * Only respond with the format '${name} ${verb}: "..."', no additional commentary or text.
           * Follow the Description when creating the internal thought!
+          * Only use 2 sentences max.
 
           Please reply with the next internal monologue thought of ${name}. Use the format: '${name} ${verb}: "..."'
         `
