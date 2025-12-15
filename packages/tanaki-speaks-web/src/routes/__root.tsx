@@ -1,64 +1,32 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import '@radix-ui/themes/styles.css'
+import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { Box, Button, Theme } from '@radix-ui/themes'
 import { Suspense, lazy } from 'react'
 
 import { ClientOnly } from '../components/ClientOnly'
 
-import appCss from '../styles.css?url'
-
 const DevtoolsClient = lazy(() => import('../components/DevtoolsClient'))
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      {
-        charSet: 'utf-8',
-      },
-      {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
-      },
-      {
-        title: 'Tanaki',
-      },
-    ],
-    links: [
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
-    ],
-  }),
-
-  shellComponent: RootDocument,
+  component: RootComponent,
   notFoundComponent: NotFound,
 })
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+function RootComponent() {
   return (
-    <html lang="en" className="dark-theme dark" style={{ colorScheme: 'dark' }}>
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <Theme
-          appearance="dark"
-          accentColor="iris"
-          grayColor="slate"
-          panelBackground="solid"
-          radius="small"
-        >
-          {children}
-        </Theme>
-        <ClientOnly>
-          <Suspense fallback={null}>
-            <DevtoolsClient />
-          </Suspense>
-        </ClientOnly>
-        <Scripts />
-      </body>
-    </html>
+    <Theme
+      appearance="dark"
+      accentColor="iris"
+      grayColor="slate"
+      panelBackground="solid"
+      radius="small"
+    >
+      <Outlet />
+      <ClientOnly>
+        <Suspense fallback={null}>
+          <DevtoolsClient />
+        </Suspense>
+      </ClientOnly>
+    </Theme>
   )
 }
 

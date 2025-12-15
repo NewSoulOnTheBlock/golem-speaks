@@ -17,24 +17,29 @@ function readBoolEnv(value: unknown, fallback: boolean): boolean {
 }
 
 export default function TanakiClient() {
-  const organization = import.meta.env.VITE_SOUL_ENGINE_ORGANIZATION as
-    | string
-    | undefined;
-  const local = readBoolEnv(import.meta.env.VITE_SOUL_ENGINE_LOCAL, true);
+  const organization =
+    (import.meta.env.VITE_SOUL_ENGINE_ORGANIZATION as string | undefined) ??
+    "local";
+  const local = readBoolEnv(import.meta.env.VITE_SOUL_ENGINE_LOCAL, false);
 
-  if (!organization) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-        <p className="font-mono text-sm">
-          Missing <code>VITE_SOUL_ENGINE_ORGANIZATION</code>. Add it to{" "}
-          <code>.env.local</code>.
-        </p>
-      </div>
-    );
-  }
+  // Always connect via same-origin WS proxy: /ws/soul/:org/:channel
+  // - Works on Fly (soul-engine is internal-only)
+  // - Works locally (single mode to debug)
+  const getWebSocketUrl =
+    typeof window === "undefined"
+      ? undefined
+      : (org: string, _local: boolean, debug: boolean) => {
+          const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          const channel = debug ? "debug-chat" : "experience";
+          return `${wsProtocol}//${window.location.host}/ws/soul/${encodeURIComponent(org)}/${channel}`;
+        };
 
   return (
-    <SoulEngineProvider organization={organization} local={local}>
+    <SoulEngineProvider
+      organization={organization}
+      local={local}
+      getWebSocketUrl={getWebSocketUrl}
+    >
       <TanakiExperience />
     </SoulEngineProvider>
   );
