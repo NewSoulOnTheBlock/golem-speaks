@@ -1,6 +1,6 @@
 import { SoulEngineProvider } from "@opensouls/react";
 import { OrbitControls } from "@react-three/drei";
-import { Box, ScrollArea, Text } from "@radix-ui/themes";
+import { Box, Flex, ScrollArea, Text } from "@radix-ui/themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/ChatInput";
@@ -46,6 +46,7 @@ function TanakiExperience() {
   const audioRef = useRef<TanakiAudioHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastSpokenIdRef = useRef<string | null>(null);
+  const scrollBottomRef = useRef<HTMLDivElement | null>(null);
   const [blend, setBlend] = useState(0);
 
   const statusText = useMemo(() => {
@@ -145,6 +146,11 @@ function TanakiExperience() {
     });
   }, [messages, speak]);
 
+  // Keep the chat scrolled to the newest message.
+  useEffect(() => {
+    scrollBottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
   return (
     <div style={{ height: "100dvh", width: "100%", position: "relative" }}>
       <Scene
@@ -196,14 +202,14 @@ function TanakiExperience() {
           padding: 12,
         }}
       >
-        <Box className="flex items-center justify-between mb-2">
+        <Flex justify="between" align="center" className="mb-2" gap="3">
           <Text size="2" color="gray">
             {statusText}
           </Text>
           <Text size="2" color="gray">
             tanaki
           </Text>
-        </Box>
+        </Flex>
 
         <ScrollArea
           type="always"
@@ -229,6 +235,7 @@ function TanakiExperience() {
                 </Box>
               </Box>
             ))}
+            <div ref={scrollBottomRef} />
           </Box>
         </ScrollArea>
 
