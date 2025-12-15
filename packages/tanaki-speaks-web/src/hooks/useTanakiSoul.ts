@@ -20,16 +20,8 @@ function readBoolEnv(value: unknown, fallback: boolean): boolean {
 }
 
 export function useTanakiSoul() {
-  const organization = import.meta.env.VITE_SOUL_ENGINE_ORGANIZATION as
-    | string
-    | undefined;
-  const local = readBoolEnv(import.meta.env.VITE_SOUL_ENGINE_LOCAL, true);
-
-  if (!organization) {
-    throw new Error(
-      "Missing VITE_SOUL_ENGINE_ORGANIZATION. Add it to your env (e.g. .env.local)."
-    );
-  }
+  const organization = "local";
+  const local = true;
 
   const { soul, connected, disconnect } = useSoul({
     blueprint: "tanaki-speaks",

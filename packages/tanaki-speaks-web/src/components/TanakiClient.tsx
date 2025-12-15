@@ -17,9 +17,7 @@ function readBoolEnv(value: unknown, fallback: boolean): boolean {
 }
 
 export default function TanakiClient() {
-  const organization =
-    (import.meta.env.VITE_SOUL_ENGINE_ORGANIZATION as string | undefined) ??
-    "local";
+  const organization = "local";
   const local = readBoolEnv(import.meta.env.VITE_SOUL_ENGINE_LOCAL, false);
 
   // Always connect via same-origin WS proxy: /ws/soul/:org/:channel
