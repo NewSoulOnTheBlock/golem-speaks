@@ -5,3 +5,4 @@ dist
 supabase
 node_modules
 /tests
+fly.toml
