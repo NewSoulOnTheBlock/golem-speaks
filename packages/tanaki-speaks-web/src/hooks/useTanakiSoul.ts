@@ -40,7 +40,9 @@ export function useTanakiSoul() {
 
   useEffect(() => {
     const onSays = async ({ content }: { content: () => Promise<string> }) => {
+      console.log("onSays");
       const text = await content();
+      console.log("text", text);
       setMessages((prev) => [
         ...prev,
         { id: randomId(), role: "tanaki", content: text },
@@ -73,6 +75,7 @@ export function useTanakiSoul() {
       connected,
       messages,
       send,
+      disconnect,
     };
   }, [organization, local, soul, connected, messages]);
 }

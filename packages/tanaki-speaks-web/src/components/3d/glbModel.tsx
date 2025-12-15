@@ -212,7 +212,27 @@ export default function GLBModel({
           const name = mesh.name as string;
           for (const m of materialOverride) {
             if (name && matches(m)(name)) {
-              const newMat = createObjectSpaceGradientMaterial(mesh.geometry as THREE.BufferGeometry, m.options);
+              const geometry = mesh.geometry as THREE.BufferGeometry;
+              const newMat = createObjectSpaceGradientMaterial(
+                geometry,
+                m.options
+              );
+
+              // Preserve deformation capabilities when overriding materials:
+              // - SkinnedMesh needs `material.skinning = true`
+              // - Morph targets require `material.morphTargets`/`material.morphNormals`
+              if (mesh instanceof THREE.SkinnedMesh) {
+                newMat.skinning = true;
+              }
+              const morphPos = geometry.morphAttributes?.position;
+              const morphNorm = geometry.morphAttributes?.normal;
+              if (morphPos && morphPos.length > 0) {
+                newMat.morphTargets = true;
+              }
+              if (morphNorm && morphNorm.length > 0) {
+                newMat.morphNormals = true;
+              }
+
               const targetMesh = mesh as THREE.Mesh;
               targetMesh.material = newMat;
               newMat.needsUpdate = true;

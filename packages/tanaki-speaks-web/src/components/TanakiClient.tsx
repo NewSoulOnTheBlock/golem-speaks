@@ -45,6 +45,79 @@ function TanakiExperience() {
     return connected ? "connected" : "connecting…";
   }, [connected]);
 
+  // Ported from `reference-only/page.tsx`: these props are what actually apply
+  // the procedural materials + hide helper nodes in the Tanaki GLB.
+  const hideNodes = useMemo(() => {
+    return [
+      "BezierCirclenewBod",
+      "mouth_1",
+      "armR002",
+      "armL002",
+      "browR_1",
+      "browL_1",
+      "browM",
+    ] as const;
+  }, []);
+
+  const materialOverride = useMemo(() => {
+    return [
+      {
+        matcher: ["BezierCirclenewBod003"],
+        options: {
+          axis: "y",
+          colors: ["#FF005C", "#FF005C", "#FFEB00"],
+          stops: [0.2, 0.612, 0.874],
+          roughness: 0.6,
+          metalness: 0.0,
+          emissiveIntensity: 1,
+        },
+      },
+      {
+        matcher: ["mouthrig"],
+        options: {
+          axis: "y",
+          colors: ["#FF005C", "#FF005C", "#FF005C"],
+          stops: [0.2, 0.612, 0.874],
+          roughness: 0.6,
+          metalness: 0.0,
+          emissiveIntensity: 1,
+        },
+      },
+      {
+        matcher: ["handR_1", "handL_1"],
+        options: {
+          axis: "-y",
+          colors: ["#F3F3F3", "#F9DA5F", "#F9DA5F", "#F3AC76", "#EC6388"],
+          stops: [0.009, 0.0304, 0.514, 0.692, 0.807],
+          roughness: 0.6,
+          metalness: 0.0,
+        },
+      },
+      {
+        matcher: ["armRHigherPoly"],
+        options: {
+          axis: "x",
+          colors: ["#BFBFBF", "#BFBFBF"],
+          stops: [0.6, 0.0],
+          opacities: [0.0, 1.0],
+          roughness: 0.6,
+          metalness: 0.0,
+        },
+      },
+      {
+        matcher: ["armLHigherPoly"],
+        options: {
+          axis: "x",
+          colors: ["#BFBFBF", "#BFBFBF"],
+          stops: [0.4, 1.0],
+          opacities: [0.0, 1.0],
+          roughness: 0.6,
+          metalness: 0.0,
+        },
+      },
+    ] as const;
+  }, []);
+
   return (
     <div style={{ height: "100dvh", width: "100%", position: "relative" }}>
       <Scene
@@ -67,6 +140,8 @@ function TanakiExperience() {
           url="/Tanaki-anim-web-v1.glb"
           position={[0, 0, 0]}
           animationName="Tanaki_Floating_idle_117"
+          hideNodes={[...hideNodes]}
+          materialOverride={[...materialOverride]}
         />
       </Scene>
 
