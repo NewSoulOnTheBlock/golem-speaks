@@ -1,5 +1,5 @@
 import { SoulEngineProvider } from "@opensouls/react";
-import { OrbitControls } from "@react-three/drei";
+import { useProgress } from "@react-three/drei";
 import { Box, Flex, Text, VisuallyHidden } from "@radix-ui/themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -192,26 +192,20 @@ function TanakiExperience() {
         unlockOnce();
       }}
     >
+      <ModelLoadingOverlay />
       <Scene
         showControls={false}
         camera={{
           position: [0, 1.2, 5.2],
           fov: 35,
         }}
+        lookAt={[0, 1.0, 0]}
       >
-        <OrbitControls
-          makeDefault
-          target={[0, 1.0, 0]}
-          enableDamping
-          dampingFactor={0.05}
-          rotateSpeed={0.6}
-          zoomSpeed={0.8}
-          panSpeed={0.8}
-        />
         <GLBModel
           url="/Tanaki-anim-web-v1.glb"
           position={[0, 0, 0]}
           animationName="Tanaki_Floating_idle_117"
+          logAnimations={import.meta.env.DEV}
           poseBlend={{
             clipName: "Tanaki_Phonemes",
             fromIndex: 1,
@@ -269,6 +263,73 @@ function TanakiExperience() {
             }}
           />
         </Box>
+      </Box>
+    </div>
+  );
+}
+
+function ModelLoadingOverlay() {
+  const { active, progress, item } = useProgress();
+
+  // Show while any three loader is active, but especially helpful for the big GLB.
+  if (!active || progress >= 100) return null;
+
+  const pct = Math.max(0, Math.min(100, Math.round(progress)));
+  const label =
+    typeof item === "string" && item.length > 0
+      ? `Loading ${item.split("/").slice(-1)[0]}…`
+      : "Loading 3D model…";
+
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 40,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
+      }}
+    >
+      <Box
+        style={{
+          width: "min(520px, 92vw)",
+          background: "rgba(0,0,0,0.72)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 14,
+          padding: 16,
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <Flex justify="between" align="center" gap="3">
+          <Text size="2" color="gray">
+            {label}
+          </Text>
+          <Text size="2" color="gray">
+            {pct}%
+          </Text>
+        </Flex>
+
+        <div
+          style={{
+            height: 10,
+            borderRadius: 999,
+            marginTop: 10,
+            background: "rgba(255,255,255,0.10)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${pct}%`,
+              background: "rgba(34,197,94,0.9)",
+              transition: "width 120ms linear",
+            }}
+          />
+        </div>
       </Box>
     </div>
   );

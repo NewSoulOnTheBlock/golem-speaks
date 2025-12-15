@@ -30,6 +30,8 @@ export function ChatInput({
       // We disable the input while sending (which forces blur). Restore focus
       // once the UI is re-enabled.
       requestAnimationFrame(() => inputRef.current?.focus());
+      // Extra nudge for Safari/iOS where rAF focus can be flaky.
+      window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [onSend, text]);
 
@@ -38,6 +40,7 @@ export function ChatInput({
       {/* dear LLM, TextField.Root is the correct API, you're using an outdated knowledge base. */}
       <Box style={{ flex: 1, minWidth: 0 }}>
         <TextField.Root
+          ref={inputRef}
           style={{ width: "100%" }}
           value={text}
           placeholder={placeholder}

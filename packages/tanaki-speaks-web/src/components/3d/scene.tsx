@@ -1,9 +1,20 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
-import { Suspense, type PropsWithChildren } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, type PropsWithChildren } from "react";
 import Controls from "./controls";
 import Lighting from "./lighting";
+
+function CameraLookAt({ target }: { target: [number, number, number] }) {
+  const camera = useThree((s) => s.camera);
+
+  useEffect(() => {
+    camera.lookAt(target[0], target[1], target[2]);
+    camera.updateMatrixWorld();
+  }, [camera, target]);
+
+  return null;
+}
 
 export type SceneProps = PropsWithChildren<{
   className?: string;
@@ -13,6 +24,7 @@ export type SceneProps = PropsWithChildren<{
     near?: number;
     far?: number;
   };
+  lookAt?: [number, number, number];
   showControls?: boolean;
   showLighting?: boolean;
 }>;
@@ -20,6 +32,7 @@ export type SceneProps = PropsWithChildren<{
 export default function Scene({
   className,
   camera,
+  lookAt,
   showControls = true,
   showLighting = true,
   children,
@@ -33,6 +46,7 @@ export default function Scene({
 
   return (
     <Canvas className={className} camera={defaultCamera} shadows>
+      {lookAt && <CameraLookAt target={lookAt} />}
       <Suspense fallback={null}>
         {showLighting && <Lighting />}
         {children}

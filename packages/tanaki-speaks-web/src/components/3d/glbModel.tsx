@@ -17,6 +17,7 @@ export type GLBModelProps = {
   onLoaded?: () => void;
   hideNodes?: Array<string | RegExp>;
   logHierarchy?: boolean;
+  logAnimations?: boolean;
   onNodeClick?: (info: { name: string; object: Object3D }) => void;
   logClicks?: boolean;
   materialOverride?: MaterialOverride[];
@@ -46,6 +47,7 @@ export default function GLBModel({
   animationName,
   hideNodes,
   logHierarchy = false,
+  logAnimations = false,
   onNodeClick,
   logClicks = false,
   materialOverride,
@@ -53,6 +55,14 @@ export default function GLBModel({
 }: GLBModelProps) {
   const groupRef = useRef<Object3D>(null!);
   const gltf = useGLTF(url);
+
+  // Helpful for debugging: list all animation clips embedded in the GLB.
+  useEffect(() => {
+    if (!logAnimations) return;
+    const clips = gltf.animations ?? [];
+    const names = clips.map((c) => c.name);
+    console.log(`[GLBModel] animations for ${url}:`, names);
+  }, [gltf.animations, logAnimations, url]);
 
   const { effectiveClips, effectiveAnimationName, effectiveOverlayClipName } =
     useMemo(() => {
