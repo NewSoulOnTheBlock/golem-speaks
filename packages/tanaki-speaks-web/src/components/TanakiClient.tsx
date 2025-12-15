@@ -1,11 +1,13 @@
 import { SoulEngineProvider } from "@opensouls/react";
 import { OrbitControls } from "@react-three/drei";
 import { Box, ScrollArea, Text } from "@radix-ui/themes";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/ChatInput";
+import { TanakiAudio, type TanakiAudioHandle } from "@/components/TanakiAudio";
 import { GLBModel, Scene } from "@/components/3d";
 import { useTanakiSoul } from "@/hooks/useTanakiSoul";
+import { useTTS } from "@/hooks/useTTS";
 
 function readBoolEnv(value: unknown, fallback: boolean): boolean {
   if (typeof value !== "string") return fallback;
@@ -40,6 +42,11 @@ export default function TanakiClient() {
 
 function TanakiExperience() {
   const { connected, messages, send } = useTanakiSoul();
+  const { speak } = useTTS();
+  const audioRef = useRef<TanakiAudioHandle | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastSpokenIdRef = useRef<string | null>(null);
+  const [blend, setBlend] = useState(0);
 
   const statusText = useMemo(() => {
     return connected ? "connected" : "connecting…";
@@ -118,6 +125,26 @@ function TanakiExperience() {
     ] as const;
   }, []);
 
+  // When Tanaki says something new, stream TTS audio into the player.
+  useEffect(() => {
+    const latest = [...messages].reverse().find((m) => m.role === "tanaki");
+    if (!latest) return;
+    if (lastSpokenIdRef.current === latest.id) return;
+    lastSpokenIdRef.current = latest.id;
+
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    audioRef.current?.interrupt();
+    void speak(latest.content, {
+      signal: abortRef.current.signal,
+      onChunk: (chunk) => audioRef.current?.enqueuePcm16(chunk),
+    }).catch((err) => {
+      // Avoid crashing the UI if TTS fails.
+      console.error("TTS error:", err);
+    });
+  }, [messages, speak]);
+
   return (
     <div style={{ height: "100dvh", width: "100%", position: "relative" }}>
       <Scene
@@ -140,11 +167,25 @@ function TanakiExperience() {
           url="/Tanaki-anim-web-v1.glb"
           position={[0, 0, 0]}
           animationName="Tanaki_Floating_idle_117"
+          poseBlend={{
+            clipName: "Tanaki_Phonemes",
+            fromIndex: 1,
+            toIndex: 3,
+            blend,
+          }}
           hideNodes={[...hideNodes]}
           // @ts-expect-error materialOverride is not typed
           materialOverride={[...materialOverride]}
         />
       </Scene>
+
+      <TanakiAudio
+        ref={audioRef}
+        enabled={true}
+        onVolumeChange={(volume) => {
+          setBlend((prev) => prev * 0.5 + volume * 0.5);
+        }}
+      />
 
       <Box
         className="absolute left-4 right-4 bottom-4 max-w-2xl mx-auto"
@@ -192,7 +233,14 @@ function TanakiExperience() {
         </ScrollArea>
 
         <Box className="mt-3">
-          <ChatInput disabled={false} onSend={send} />
+          <ChatInput
+            disabled={false}
+            onSend={async (text) => {
+              // Unlock audio on user gesture to satisfy autoplay policies.
+              await audioRef.current?.unlock();
+              await send(text);
+            }}
+          />
         </Box>
       </Box>
     </div>
