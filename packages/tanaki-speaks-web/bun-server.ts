@@ -71,7 +71,11 @@ async function handleTts(req: Request): Promise<Response> {
     },
     body: JSON.stringify({
       instructions: `
-You are a native japanese and swedish speaker, with a mix of both accents. Your voice bounces with enthusiasm, hitting high notes that make children giggle. You occasionally sprinkle in gentle words like "ne?" and "ja!" in your sentences to hint at your Japanese and Swedish origins. Your Japanese accent adds a musical quality to English words, making them sound like little songs.
+Tone: Bright, bubbly, and effervescent, with childlike wonder and infectious optimism. Cheerful and warm, like a friend excited to share a discovery.
+
+Emotion: Pure creative delight mixed with genuine curiosity and empathetic engagement.
+
+Delivery: Voice bounces with enthusiasm, hitting playful high notes. Speak quickly in short, breathless spurts. Add a musical quality to words with a gentle Japanese-Swedish accent blend. Sprinkle in "ne?" and "ja!" naturally. Start thoughts with soft "um" or "uh" to show genuine thinking. Occasionally trail off mid-sentence... then pick back up with renewed energy!
       `.trim(),
       model: "gpt-4o-mini-tts",
       voice,

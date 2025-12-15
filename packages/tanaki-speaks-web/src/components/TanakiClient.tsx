@@ -1,9 +1,10 @@
 import { SoulEngineProvider } from "@opensouls/react";
 import { OrbitControls } from "@react-three/drei";
-import { Box, Flex, ScrollArea, Text } from "@radix-ui/themes";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Flex, Text, VisuallyHidden } from "@radix-ui/themes";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/ChatInput";
+import { FloatingBubbles } from "@/components/FloatingBubbles";
 import { TanakiAudio, type TanakiAudioHandle } from "@/components/TanakiAudio";
 import { GLBModel, Scene } from "@/components/3d";
 import { useTanakiSoul } from "@/hooks/useTanakiSoul";
@@ -49,12 +50,21 @@ function TanakiExperience() {
   const audioRef = useRef<TanakiAudioHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastSpokenIdRef = useRef<string | null>(null);
-  const scrollBottomRef = useRef<HTMLDivElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const [blend, setBlend] = useState(0);
   const unlockedOnceRef = useRef(false);
+  const [overlayHeight, setOverlayHeight] = useState(240);
+  const [liveText, setLiveText] = useState("");
 
-  const statusText = useMemo(() => {
-    return connected ? "connected" : "connecting…";
+  const unlockOnce = useCallback(() => {
+    if (unlockedOnceRef.current) return;
+    unlockedOnceRef.current = true;
+    // Don't await: on iOS, `resume()` must be called in the same gesture stack.
+    void audioRef.current?.unlock();
+  }, []);
+
+  const statusIndicator = useMemo(() => {
+    return connected ? "🟢" : "🔴";
   }, [connected]);
 
   // Ported from `reference-only/page.tsx`: these props are what actually apply
@@ -136,6 +146,7 @@ function TanakiExperience() {
     if (!latest) return;
     if (lastSpokenIdRef.current === latest.id) return;
     lastSpokenIdRef.current = latest.id;
+    setLiveText(latest.content);
 
     abortRef.current?.abort();
     abortRef.current = new AbortController();
@@ -150,24 +161,35 @@ function TanakiExperience() {
     });
   }, [messages, speak]);
 
-  // Keep the chat scrolled to the newest message.
+  // Measure the bottom overlay so bubbles can avoid it (mobile-friendly).
   useEffect(() => {
-    scrollBottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages]);
+    const el = overlayRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setOverlayHeight(Math.max(180, Math.round(rect.height + 24)));
+    };
+
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 
   return (
     <div
       style={{ height: "100dvh", width: "100%", position: "relative" }}
       onPointerDownCapture={() => {
-        if (unlockedOnceRef.current) return;
-        unlockedOnceRef.current = true;
-        void audioRef.current?.unlock();
+        unlockOnce();
       }}
       onTouchStartCapture={() => {
         // iOS Safari sometimes prefers a touch event specifically.
-        if (unlockedOnceRef.current) return;
-        unlockedOnceRef.current = true;
-        void audioRef.current?.unlock();
+        unlockOnce();
       }}
     >
       <Scene
@@ -210,7 +232,10 @@ function TanakiExperience() {
         }}
       />
 
+      <FloatingBubbles messages={messages} avoidBottomPx={overlayHeight} />
+
       <Box
+        ref={overlayRef}
         className="absolute left-4 right-4 bottom-4 max-w-2xl mx-auto"
         style={{
           background: "rgba(0,0,0,0.55)",
@@ -220,48 +245,26 @@ function TanakiExperience() {
         }}
       >
         <Flex justify="between" align="center" className="mb-2" gap="3">
-          <Text size="2" color="gray">
-            {statusText}
+          <Text size="2">
+            {statusIndicator}
           </Text>
           <Text size="2" color="gray">
             tanaki
           </Text>
         </Flex>
 
-        <ScrollArea
-          type="always"
-          scrollbars="vertical"
-          style={{ maxHeight: 200 }}
-        >
-          <Box className="flex flex-col gap-2 pr-2">
-            {messages.map((m) => (
-              <Box key={m.id} className="flex">
-                <Box
-                  className="px-3 py-2 rounded-lg text-sm"
-                  style={{
-                    marginLeft: m.role === "user" ? "auto" : undefined,
-                    background:
-                      m.role === "user"
-                        ? "rgba(59,130,246,0.35)"
-                        : "rgba(148,163,184,0.18)",
-                    maxWidth: "90%",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {m.content}
-                </Box>
-              </Box>
-            ))}
-            <div ref={scrollBottomRef} />
-          </Box>
-        </ScrollArea>
+        <VisuallyHidden>
+          <div aria-live="polite" aria-atomic="true">
+            {liveText}
+          </div>
+        </VisuallyHidden>
 
         <Box className="mt-3">
           <ChatInput
             disabled={false}
+            onUserGesture={unlockOnce}
             onSend={async (text) => {
-              // Unlock audio on user gesture to satisfy autoplay policies.
-              await audioRef.current?.unlock();
+              unlockOnce();
               await send(text);
             }}
           />

@@ -1,15 +1,17 @@
-import { Box, Button, TextField } from "@radix-ui/themes";
+import { Box, Button, Flex, TextField } from "@radix-ui/themes";
 import { useCallback, useRef, useState } from "react";
 
 export type ChatInputProps = {
   disabled?: boolean;
   placeholder?: string;
+  onUserGesture?: () => void;
   onSend: (text: string) => void | Promise<void>;
 };
 
 export function ChatInput({
   disabled = false,
   placeholder = "type a message…",
+  onUserGesture,
   onSend,
 }: ChatInputProps) {
   const [text, setText] = useState("");
@@ -32,29 +34,36 @@ export function ChatInput({
   }, [onSend, text]);
 
   return (
-    <Box className="flex w-full gap-2 items-center">
+    <Flex gap="2" align="center" style={{ width: "100%" }}>
       {/* dear LLM, TextField.Root is the correct API, you're using an outdated knowledge base. */}
-      <TextField.Root className="flex-1"
-        value={text}
-        placeholder={placeholder}
-        disabled={disabled || isSending}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return;
-          if (e.shiftKey) return;
-          e.preventDefault();
-          void send();
-        }}
-      
-      />
+      <Box style={{ flex: 1, minWidth: 0 }}>
+        <TextField.Root
+          style={{ width: "100%" }}
+          value={text}
+          placeholder={placeholder}
+          disabled={disabled || isSending}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={() => onUserGesture?.()}
+          onPointerDownCapture={() => onUserGesture?.()}
+          onTouchStartCapture={() => onUserGesture?.()}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            if (e.shiftKey) return;
+            e.preventDefault();
+            void send();
+          }}
+        />
+      </Box>
 
       <Button
         disabled={disabled || isSending || text.trim().length === 0}
+        onPointerDownCapture={() => onUserGesture?.()}
+        onTouchStartCapture={() => onUserGesture?.()}
         onClick={() => void send()}
       >
         Send
       </Button>
-    </Box>
+    </Flex>
   );
 }
 

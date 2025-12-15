@@ -8,6 +8,31 @@ import {
   useRef,
 } from "react";
 
+function resampleLinear(
+  input: Float32Array,
+  srcRate: number,
+  dstRate: number
+): Float32Array {
+  if (srcRate === dstRate) return input;
+  if (input.length === 0) return input;
+
+  const ratio = dstRate / srcRate;
+  const outLength = Math.max(1, Math.round(input.length * ratio));
+  const output = new Float32Array(outLength);
+
+  for (let i = 0; i < outLength; i++) {
+    const t = i / ratio; // position in input sample space
+    const i0 = Math.floor(t);
+    const i1 = Math.min(i0 + 1, input.length - 1);
+    const frac = t - i0;
+    const s0 = input[i0] ?? 0;
+    const s1 = input[i1] ?? s0;
+    output[i] = s0 + (s1 - s0) * frac;
+  }
+
+  return output;
+}
+
 export type TanakiAudioHandle = {
   /**
    * Feed little-endian PCM16 mono bytes (ideally 24kHz) into the player.
@@ -23,15 +48,15 @@ export type TanakiAudioHandle = {
 export type TanakiAudioProps = {
   enabled: boolean;
   onVolumeChange?: (volume: number) => void;
-  /** Default is 24000 to match OpenAI PCM output. */
-  sampleRate?: number;
 };
 
 export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
   function TanakiAudio(
-    { enabled, onVolumeChange, sampleRate = 24000 }: TanakiAudioProps,
+    { enabled, onVolumeChange }: TanakiAudioProps,
     ref
   ) {
+    // Server currently streams PCM16 mono at 24kHz.
+    const inputSampleRateRef = useRef(24000);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameIdRef = useRef<number | null>(null);
@@ -45,11 +70,14 @@ export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
       onVolumeChangeRef.current = onVolumeChange;
     }, [onVolumeChange]);
 
-    const setupAudio = useCallback(async () => {
+    const setupAudio = useCallback(() => {
       if (audioContextRef.current) return;
 
       try {
-        const audioContext = new AudioContext({ sampleRate });
+        // Avoid passing `sampleRate` on some mobile Safari versions; it can
+        // throw even within a user gesture. We'll accept the device rate and
+        // schedule accordingly.
+        const audioContext = new AudioContext();
         audioContextRef.current = audioContext;
         nextPlayTimeRef.current = 0;
 
@@ -75,9 +103,9 @@ export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
         // Some browsers (notably iOS Safari) may require a user gesture before
         // AudioContext construction is allowed. We'll retry on unlock().
       }
-    }, [sampleRate]);
+    }, []);
 
-    const primeAndSyncTimeline = useCallback(async () => {
+    const primeAndSyncTimeline = useCallback(() => {
       const ctx = audioContextRef.current;
       if (!ctx) return;
 
@@ -95,22 +123,6 @@ export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
         // No need to keep this in audioSourcesRef; it's a one-sample prime.
       } catch {
         // ignore
-      }
-    }, []);
-
-    const drainPending = useCallback(() => {
-      const ctx = audioContextRef.current;
-      const analyser = analyserRef.current;
-      if (!ctx || !analyser) return;
-      if (ctx.state !== "running") return;
-      if (pendingChunksRef.current.length === 0) return;
-
-      const chunks = pendingChunksRef.current;
-      pendingChunksRef.current = [];
-      for (const chunk of chunks) {
-        // Replay as-if newly received now that audio is running.
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        enqueuePcm16Internal(chunk);
       }
     }, []);
 
@@ -145,28 +157,48 @@ export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
 
     useEffect(() => {
       if (enabled) {
-        void setupAudio();
+        setupAudio();
         return;
       }
       teardownAudio();
     }, [enabled, setupAudio, teardownAudio]);
 
-    const unlock = useCallback(async () => {
-      if (!enabled) return;
-      await setupAudio();
+    const drainPending = useCallback(() => {
       const ctx = audioContextRef.current;
-      if (!ctx) return;
-      if (ctx.state !== "running") {
-        try {
-          await ctx.resume();
-        } catch {
-          // ignored; some browsers require a user gesture
-        }
+      const analyser = analyserRef.current;
+      if (!ctx || !analyser) return;
+      if (ctx.state !== "running") return;
+      if (pendingChunksRef.current.length === 0) return;
+
+      const chunks = pendingChunksRef.current;
+      pendingChunksRef.current = [];
+      for (const chunk of chunks) {
+        enqueuePcm16Internal(chunk);
       }
+    }, []);
+
+    const unlock = useCallback(() => {
+      if (!enabled) return Promise.resolve();
+
+      // Must be synchronous up to `resume()` to satisfy iOS user-gesture policy.
+      setupAudio();
+      const ctx = audioContextRef.current;
+      if (!ctx) return Promise.resolve();
+
       if (ctx.state === "running") {
-        await primeAndSyncTimeline();
+        primeAndSyncTimeline();
         drainPending();
+        return Promise.resolve();
       }
+
+      const p = ctx.resume().catch(() => {});
+      // Finish the rest after resume resolves.
+      void p.then(() => {
+        if (ctx.state !== "running") return;
+        primeAndSyncTimeline();
+        drainPending();
+      });
+      return p;
     }, [drainPending, enabled, primeAndSyncTimeline, setupAudio]);
 
     const interrupt = useCallback(() => {
@@ -215,8 +247,15 @@ export const TanakiAudio = forwardRef<TanakiAudioHandle, TanakiAudioProps>(
           float32[i] = pcm16[i] / 32768.0;
         }
 
-        const audioBuffer = ctx.createBuffer(1, float32.length, ctx.sampleRate);
-        audioBuffer.getChannelData(0).set(float32);
+        // Resample 24kHz input into the device AudioContext sample rate to avoid
+        // "fast-forward" playback on phones (typically 44.1k/48k).
+        const srcRate = inputSampleRateRef.current;
+        const dstRate = ctx.sampleRate;
+        const resampled =
+          srcRate === dstRate ? float32 : resampleLinear(float32, srcRate, dstRate);
+
+        const audioBuffer = ctx.createBuffer(1, resampled.length, dstRate);
+        audioBuffer.getChannelData(0).set(resampled);
 
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
