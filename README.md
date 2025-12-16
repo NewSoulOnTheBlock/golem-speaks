@@ -89,19 +89,19 @@ The web app talks to the Soul Engine over WebSockets, and the 3D avatar + audio 
 
 ```mermaid
 flowchart LR
-  user[User in browser] -->|types message| webUI[React UI]
+  user["User (browser)"] -->|types message| webUI["React UI"]
 
-  subgraph Web App (localhost:3002)
-    webUI -->|dispatch perception\nsaid("User", text)| reactSDK[@opensouls/react useSoul()]
-    reactSDK -->|WS same-origin| bunServer[Bun server\n/ws/soul/:org/:channel]
-    presence[Presence WS\n/ws/presence] --> bunServer
+  subgraph webApp["Web App (localhost 3002)"]
+    webUI -->|dispatch perception<br/>said("User", text)| reactSDK["@opensouls/react<br/>useSoul()"]
+    reactSDK -->|WS same-origin| bunServer["Bun server<br/>/ws/soul/{org}/{channel}"]
+    presence["Presence WS<br/>/ws/presence"] --> bunServer
   end
 
-  bunServer -->|WS proxy| soulEngine[Soul Engine\nws://127.0.0.1:4000/:org/:channel]
+  bunServer -->|WS proxy| soulEngine["Soul Engine<br/>ws://127.0.0.1:4000/{org}/{channel}"]
 
-  soulEngine -->|\"says\" event (text)| reactSDK
-  soulEngine -->|ephemeral audio events\n(audio-chunk/audio-complete)| webAudio[TanakiAudio\nAudioContext playback]
-  webAudio -->|volume -> mouth blend| avatar[3D Tanaki avatar]
+  soulEngine -->|says (text)| reactSDK
+  soulEngine -->|ephemeral audio events<br/>audio-chunk / audio-complete| webAudio["TanakiAudio<br/>AudioContext playback"]
+  webAudio -->|volume -> mouth blend| avatar["3D Tanaki avatar"]
 ```
 
 #### Message + audio flow (what happens when you press “send”)
@@ -154,6 +154,71 @@ sequenceDiagram
 | Web app (Vite dev server) | `:5173` | Proxied behind `:3002` in dev |
 | Soul Engine WS | `:4000` | Bun server proxies `/ws/soul/...` → here |
 | Soul Engine docs | `:3001` | Started by `bun run start` (see `opensouls/README.md`) |
+
+---
+
+### Deploying on Fly.io (`fly.toml` + `Dockerfile`)
+
+This repo is set up to deploy a **single container** to Fly that runs:
+- The **Soul Engine** (internal-only, listens on `127.0.0.1:4000`)
+- The **Tanaki web server** (public, listens on `0.0.0.0:3002`)
+- A **Prometheus metrics** server (scraped by Fly, listens on `0.0.0.0:9091`)
+
+#### What `fly.toml` does
+
+- **Build**: uses the repo `Dockerfile`
+- **Public HTTP**: routes Fly traffic to `internal_port = 3002`
+- **Metrics**: scrapes `http://<machine>:9091/metrics`
+
+See: `fly.toml`
+
+#### What the `Dockerfile` does
+
+`Dockerfile` is a multi-stage Bun build that:
+- Installs workspace deps (including `opensouls/` packages)
+- Builds the web app (`packages/tanaki-speaks-web`)
+- Generates Prisma client for the engine (`opensouls/packages/soul-engine-cloud`)
+- Warms the HuggingFace embedding model cache into `HF_HOME` (so first boot is faster)
+
+At runtime it executes `packages/tanaki-speaks-web/start.sh`.
+
+#### Runtime boot flow (`start.sh`)
+
+```mermaid
+flowchart TD
+  A["Container start"] --> B["start.sh"]
+  B --> C["Start Soul Engine cloud server<br/>opensouls/packages/soul-engine-cloud<br/>bun run scripts/run-server.ts /app/data"]
+  B --> D{"First boot?<br/>/app/data/.tanaki-speaks-installed"}
+  D -->|no| E["Register blueprint once<br/>packages/tanaki-speaks<br/>local CLI dev --once --noopen"]
+  D -->|yes| F["Skip registration"]
+  E --> G["Start web server<br/>packages/tanaki-speaks-web<br/>bun run bun-server.ts"]
+  F --> G
+```
+
+The web server (`packages/tanaki-speaks-web/bun-server.ts`) proxies browser websocket connections from:
+- `/ws/soul/{org}/{channel}` → `ws://127.0.0.1:4000/{org}/{channel}`
+
+So on Fly the Soul Engine does **not** need to be publicly exposed; it stays inside the same container.
+
+#### Required secrets
+
+At minimum, TTS requires:
+
+```bash
+fly secrets set OPENAI_API_KEY=...
+```
+
+Optional (depending on which models/providers you use in your engine setup):
+
+```bash
+fly secrets set ANTHROPIC_API_KEY=...
+```
+
+#### Persistence note (recommended)
+
+The container stores pglite + blueprint install markers under `CODE_PATH` (defaults to `/app/data`) and pglite under `PGLITE_DATA_DIR` (defaults to `/app/data/pglite`) via `packages/tanaki-speaks-web/start.sh`.
+
+If you want conversations/state to survive deploys and machine restarts, mount a Fly volume to `/app/data` (otherwise it’s ephemeral).
 
 ---
 
