@@ -22,17 +22,30 @@ code {
   z-index: 30;
 }
 
-.tanaki-bubble-item {
+.tanaki-bubble-stack {
   position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(672px, 92vw); /* max-w-2xl-ish, aligned to the input overlay */
+  bottom: calc(var(--tanaki-bubble-avoid-bottom, 180px) + 10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tanaki-bubble-item {
+  position: relative;
+  width: 100%;
   transform: translate3d(0, 0, 0);
-  will-change: transform, opacity;
-  animation: tanaki-bubble-travel var(--tanaki-bubble-duration, 8000ms) ease-in-out
+  will-change: transform, opacity, filter;
+  animation: tanaki-bubble-stack var(--tanaki-bubble-duration, 8000ms) ease-out
     forwards;
   opacity: 0;
 }
 
 .tanaki-bubble-item--reduced-motion {
-  animation: tanaki-bubble-fade var(--tanaki-bubble-duration, 2600ms) ease-out
+  animation: tanaki-bubble-stack-fade var(--tanaki-bubble-duration, 2600ms) ease-out
     forwards;
 }
 
@@ -48,6 +61,17 @@ code {
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
+  display: inline-block;
+}
+
+.tanaki-bubble-item--user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tanaki-bubble-item--tanaki {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .tanaki-bubble-item--user .tanaki-bubble {
@@ -60,31 +84,24 @@ code {
   border-color: rgba(148, 163, 184, 0.9);
 }
 
-@keyframes tanaki-bubble-travel {
+@keyframes tanaki-bubble-stack {
   0% {
     opacity: 0;
-    transform: translate3d(0, 0, 0) scale(0.98);
-    filter: blur(0.2px);
+    transform: translate3d(0, 8px, 0) scale(0.98);
   }
   10% {
     opacity: 1;
   }
-  70% {
+  75% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate3d(
-        var(--tanaki-bubble-dx, 320px),
-        calc(-1 * (100vh + 200px)),
-        0
-      )
-      scale(1.02);
-    filter: blur(0.8px);
+    transform: translate3d(0, -8px, 0) scale(1.01);
   }
 }
 
-@keyframes tanaki-bubble-fade {
+@keyframes tanaki-bubble-stack-fade {
   0% {
     opacity: 0;
   }
@@ -98,7 +115,8 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   .tanaki-bubble-item {
-    animation: tanaki-bubble-fade var(--tanaki-bubble-duration, 2600ms) ease-out
+    animation: tanaki-bubble-stack-fade var(--tanaki-bubble-duration, 2600ms)
+      ease-out
       forwards;
   }
 }
