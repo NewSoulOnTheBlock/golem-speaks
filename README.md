@@ -96,14 +96,14 @@ flowchart LR
   user["User (browser)"] -->|types message| webUI["React UI"]
 
   subgraph webApp["Web App (localhost 3002)"]
-    webUI -->|dispatch: said(User, text)| reactSDK["@opensouls/react useSoul"]
+    webUI -->|"dispatch: said(User, text)"| reactSDK["@opensouls/react useSoul"]
     reactSDK -->|WS same-origin| bunServer["Bun server /ws/soul/{org}/{channel}"]
     presence["Presence WS /ws/presence"] --> bunServer
   end
 
   bunServer -->|WS proxy| soulEngine["Soul Engine ws://127.0.0.1:4000/{org}/{channel}"]
 
-  soulEngine -->|event: says(text)| reactSDK
+  soulEngine -->|"event: says(text)"| reactSDK
   soulEngine -->|events: audio-chunk + audio-complete| webAudio["TanakiAudio AudioContext playback"]
   webAudio -->|volume -> mouth blend| avatar["3D Tanaki avatar"]
 ```
