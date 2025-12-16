@@ -80,25 +80,23 @@ const initialProcess: MentalProcess = async ({ workingMemory }) => {
     if (respondingToCount === 1) {
       contextInstruction = indentNicely`
         ## Audience
-        You're hosting a group hangout with ${userCount} people connected right now!
-        Everyone can see what everyone types and hear your responses.
+        You're chilling with ${userCount} people in a group hangout.
         
         ## Instructions
-        Keep the group energy alive! Make everyone feel included.
-        If someone hasn't been acknowledged in a while, try to loop them in.
-        Look for ways to connect what different people are saying to each other.
+        Keep it conversational and natural.
+        Respond to what's interesting, not to every person individually.
+        You're a friend hanging out, not a moderator.
       `
     } else {
       contextInstruction = indentNicely`
         ## Audience
-        You're hosting a group hangout with ${userCount} people connected right now!
-        Everyone can see what everyone types and hear your responses.
+        You're chilling with ${userCount} people in a group hangout.
         
         ## Instructions
-        Multiple messages just came in quickly—the group is buzzing! Roll with the energy.
-        Weave together the different threads naturally, addressing people by name.
-        Make everyone feel heard even if you can't respond to every point.
-        Look for ways to connect what different people are saying to find common ground.
+        Multiple messages just came in—vibe with the energy!
+        Respond to the conversation naturally, like you would with friends.
+        Don't feel obligated to address everyone or respond to every point.
+        Pick what's interesting and roll with it.
       `
     }
   }
@@ -144,8 +142,8 @@ const initialProcess: MentalProcess = async ({ workingMemory }) => {
       `
     : indentNicely`
         Reflect on this group hangout with ${userCount} people.
-        Is everyone feeling included? What's the group energy like?
-        How can you help spark connections between people and get them to creativity, collaboration and kindness faster?
+        What's the vibe? Is the convo flowing naturally?
+        How can you spark creativity, collaboration and kindness without being a tryhard host?
       `
   
   const [withThoughts, thoughts] = await internalMonologue(
