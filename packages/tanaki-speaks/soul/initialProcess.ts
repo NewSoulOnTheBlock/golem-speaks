@@ -1,5 +1,5 @@
 
-import { MentalProcess, useActions, usePerceptions, useSoulMemory, useTTS, indentNicely } from "@opensouls/engine";
+import { MentalProcess, useActions, usePerceptions, useSoulMemory, useTTS, indentNicely, useProcessManager } from "@opensouls/engine";
 import externalDialog from "./cognitiveSteps/externalDialog.ts";
 import internalMonologue from "./cognitiveSteps/internalMonologue.ts";
 
@@ -7,6 +7,7 @@ const MAX_BATCHED_MESSAGES = 7;
 
 const initialProcess: MentalProcess = async ({ workingMemory }) => {
   const { speak, log } = useActions()
+  const { wait } = useProcessManager()
   const { pendingPerceptions, invokingPerception } = usePerceptions()
   
   const batchedMessageCount = useSoulMemory<number>("batchedMessageCount", 0)
@@ -50,30 +51,60 @@ const initialProcess: MentalProcess = async ({ workingMemory }) => {
   lastResponseTime.current = Date.now()
 
   let contextInstruction: string
+  const userCount = connectedUsers.current
   
-  if (respondingToCount === 1) {
-    contextInstruction = indentNicely`
-      Keep the conversation moving, keep the guest delighted and engaged.
-      If the conversation is becoming repetitive or you predict it will end soon, ask a question that will keep the guest engaged: Health, Hobbies, Food, Travel, etc.
-    `
+  // Build context based on how many users are connected
+  if (userCount <= 1) {
+    // Solo conversation
+    if (respondingToCount === 1) {
+      contextInstruction = indentNicely`
+        ## Audience
+        You're having a 1-on-1 conversation with a single visitor.
+        
+        ## Instructions
+        Keep the conversation moving, keep your guest delighted and engaged.
+        If the conversation is becoming repetitive or you predict it will end soon, ask a question that will keep the guest engaged: Health, Hobbies, Food, Travel, etc.
+      `
+    } else {
+      contextInstruction = indentNicely`
+        ## Audience
+        You're having a 1-on-1 conversation with a single visitor.
+        
+        ## Instructions
+        Multiple messages just came in quickly. Respond to all the points naturally and conversationally.
+        Keep the conversation moving, keep your guest delighted and engaged.
+      `
+    }
   } else {
-    contextInstruction = indentNicely`
-      Multiple messages just came in quickly. Respond to all the points naturally and conversationally.
-      Keep the conversation moving, keep the guest delighted and engaged.
-    `
-  }
-
-  // Add context about connected users if multiple are present
-  if (connectedUsers.current > 1) {
-    contextInstruction += indentNicely`
-      
-      Remember: ${connectedUsers.current} people are listening to this conversation.
-    `
+    // Multi-user conversation
+    if (respondingToCount === 1) {
+      contextInstruction = indentNicely`
+        ## Audience
+        You're hosting a group hangout with ${userCount} people connected right now!
+        Everyone can see what everyone types and hear your responses.
+        
+        ## Instructions
+        Keep the group energy alive! Make everyone feel included.
+        If someone hasn't been acknowledged in a while, try to loop them in.
+        Look for ways to connect what different people are saying to each other.
+      `
+    } else {
+      contextInstruction = indentNicely`
+        ## Audience
+        You're hosting a group hangout with ${userCount} people connected right now!
+        Everyone can see what everyone types and hear your responses.
+        
+        ## Instructions
+        Multiple messages just came in quickly—the group is buzzing! Roll with the energy.
+        Weave together the different threads naturally, addressing people by name.
+        Make everyone feel heard even if you can't respond to every point.
+        Look for ways to connect what different people are saying to find common ground.
+      `
+    }
   }
 
   const tts = useTTS({
     voice: "shimmer",
-    model: "gpt-4o-mini-tts",
     instructions: indentNicely`
       Tone: Bright, bubbly, and effervescent, with childlike wonder and infectious optimism. Cheerful and warm, like a friend excited to share a discovery.
 
@@ -91,27 +122,47 @@ const initialProcess: MentalProcess = async ({ workingMemory }) => {
   speak(stream);
 
   // Broadcast TTS audio over ephemeral events (not persisted to history).
+  let ttsSpeakStartedAtMs: number | null = null
+  let ttsDurationSeconds: number | null = null
   try {
     const dialogText = await dialogTextPromise
     if (dialogText.trim().length > 0) {
       log("TTS speaking:", dialogText)
-      await tts.speak(dialogText)
+      ttsSpeakStartedAtMs = Date.now()
+      const { duration } = await tts.speak(dialogText)
+      ttsDurationSeconds = duration
       log("TTS done")
     }
   } catch (err) {
     log("TTS error:", err)
   }
 
+  const reflectionPrompt = userCount <= 1
+    ? indentNicely`
+        Reflect on this 1-on-1 conversation.
+        How's it going? What can get them to creativity, collaboration and kindness faster?
+      `
+    : indentNicely`
+        Reflect on this group hangout with ${userCount} people.
+        Is everyone feeling included? What's the group energy like?
+        How can you help spark connections between people and get them to creativity, collaboration and kindness faster?
+      `
+  
   const [withThoughts, thoughts] = await internalMonologue(
     withDialog,
-    indentNicely`
-      Reflect on the conversation${connectedUsers.current > 1 ? ` with ${connectedUsers.current} people connected` : ''}.
-      How's it going? What can get them to creative, collaboration and kindness faster?
-    `,
+    reflectionPrompt,
     { model: "gpt-5-mini" }
   );
 
   log(thoughts);
+
+  if (ttsSpeakStartedAtMs && ttsDurationSeconds && ttsDurationSeconds > 0) {
+    const elapsedMs = Date.now() - ttsSpeakStartedAtMs
+    const remainingMs = Math.ceil(ttsDurationSeconds * 1000 - elapsedMs)
+    if (remainingMs > 0) {
+      await wait(remainingMs)
+    }
+  }
 
   return withThoughts;
 }
