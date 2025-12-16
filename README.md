@@ -212,12 +212,6 @@ At minimum, TTS requires:
 fly secrets set OPENAI_API_KEY=...
 ```
 
-Optional (depending on which models/providers you use in your engine setup):
-
-```bash
-fly secrets set ANTHROPIC_API_KEY=...
-```
-
 #### Persistence note (recommended)
 
 The container stores pglite + blueprint install markers under `CODE_PATH` (defaults to `/app/data`) and pglite under `PGLITE_DATA_DIR` (defaults to `/app/data/pglite`) via `packages/tanaki-speaks-web/start.sh`.
