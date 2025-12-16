@@ -26,4 +26,7 @@ primary_region = "iad"
   port = 9091
   path = "/metrics"
 
+[[mounts]]
+  source = "tanaki_data"
+  destination = "/app/data"
 
