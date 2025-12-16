@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useSoul } from "@opensouls/react";
 import { said } from "@opensouls/soul";
 import { usePresence } from "./usePresence";
 
-export type ChatMessage = {
-  id: string;
-  role: "user" | "tanaki";
-  content: string;
-};
-
-function randomId(): string {
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 // Consistent session ID for all users to share
 const SHARED_SOUL_ID = "tanaki-shared-session";
+
+export type StoreEvent = {
+  _id: string;
+  _kind: "perception" | "interactionRequest" | "system";
+  _timestamp: number;
+  _pending?: boolean;
+  internal?: boolean;
+  action: string;
+  content: string;
+  name?: string;
+};
 
 export function useTanakiSoul() {
   const organization = "local";
@@ -25,7 +26,7 @@ export function useTanakiSoul() {
     enabled: true 
   });
 
-  const { soul, connected, disconnect } = useSoul({
+  const { soul, connected, disconnect, store } = useSoul({
     blueprint: "tanaki-speaks",
     soulId: SHARED_SOUL_ID,
     local,
@@ -33,33 +34,11 @@ export function useTanakiSoul() {
     debug: true,
   });
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-
-  useEffect(() => {
-    const onSays = async ({ content }: { content: () => Promise<string> }) => {
-      console.log("onSays");
-      const text = await content();
-      console.log("text", text);
-      setMessages((prev) => [
-        ...prev,
-        { id: randomId(), role: "tanaki", content: text },
-      ]);
-    };
-
-    soul.on("says", onSays);
-    return () => {
-      soul.off("says", onSays);
-    };
-  }, [soul]);
+  const events = (store?.events ?? []) as unknown as StoreEvent[];
 
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-
-    setMessages((prev) => [
-      ...prev,
-      { id: randomId(), role: "user", content: trimmed },
-    ]);
 
     // Dispatch with connected count in metadata
     await soul.dispatch({
@@ -70,17 +49,15 @@ export function useTanakiSoul() {
     });
   }, [soul, presenceCount]);
 
-  return useMemo(() => {
-    return {
-      organization,
-      local,
-      soul,
-      connected,
-      messages,
-      send,
-      disconnect,
-      connectedUsers: presenceCount,
-      presenceConnected,
-    };
-  }, [organization, local, soul, connected, messages, send, disconnect, presenceCount, presenceConnected]);
+  return {
+    organization,
+    local,
+    soul,
+    connected,
+    events,
+    send,
+    disconnect,
+    connectedUsers: presenceCount,
+    presenceConnected,
+  };
 }

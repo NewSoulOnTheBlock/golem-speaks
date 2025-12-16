@@ -112,7 +112,7 @@ const materialOverride = [
 ] as const;
 
 function TanakiExperience() {
-  const { connected, messages, send, connectedUsers, soul } = useTanakiSoul();
+  const { connected, events, send, connectedUsers, soul } = useTanakiSoul();
   const audioRef = useRef<TanakiAudioHandle | null>(null);
   const lastSpokenIdRef = useRef<string | null>(null);
   const activeTtsStreamIdRef = useRef<string | null>(null);
@@ -142,17 +142,19 @@ function TanakiExperience() {
 
   // When Tanaki says something new, update aria-live text.
   useEffect(() => {
-    const latest = [...messages].reverse().find((m) => m.role === "tanaki");
+    const latest = [...events]
+      .reverse()
+      .find((e) => e._kind === "interactionRequest" && e.action === "says");
     if (!latest) return;
-    if (lastSpokenIdRef.current === latest.id) return;
-    lastSpokenIdRef.current = latest.id;
+    if (lastSpokenIdRef.current === latest._id) return;
+    lastSpokenIdRef.current = latest._id;
     setLiveText(latest.content);
-  }, [messages]);
+  }, [events.length, events[events.length - 1]?.content]);
 
   // Listen for Soul Engine ephemeral audio events (useTTS).
   useEffect(() => {
     const onChunk = (evt: any) => {
-      console.log("TTS chunk:", evt);
+      // console.log("TTS chunk:", evt);
       const data = evt?.data as any;
       if (!data || typeof data !== "object") return;
 
@@ -206,7 +208,9 @@ function TanakiExperience() {
 
     const update = () => {
       const rect = el.getBoundingClientRect();
-      setOverlayHeight(Math.max(180, Math.round(rect.height + 24)));
+      // Keep bubbles close to the input while still avoiding overlap.
+      // Previous values kept bubbles unnecessarily high above the overlay.
+      setOverlayHeight(Math.max(120, Math.round(rect.height + 10)));
     };
 
     update();
@@ -265,7 +269,7 @@ function TanakiExperience() {
         }}
       />
 
-      <FloatingBubbles messages={messages} avoidBottomPx={overlayHeight} />
+      <FloatingBubbles events={events} avoidBottomPx={overlayHeight} maxBubbles={5} />
 
       <Box
         ref={overlayRef}
@@ -315,7 +319,7 @@ function TanakiExperience() {
 }
 
 function ModelLoadingOverlay() {
-  const { active, progress, item, loaded, total } = useProgress();
+  const { active, progress, item, total } = useProgress();
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const simulationRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

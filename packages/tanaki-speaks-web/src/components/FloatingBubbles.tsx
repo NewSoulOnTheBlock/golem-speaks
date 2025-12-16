@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-import type { ChatMessage } from "@/hooks/useTanakiSoul";
+import type { StoreEvent } from "@/hooks/useTanakiSoul";
 
-type BubbleRole = ChatMessage["role"];
+type BubbleRole = "user" | "tanaki";
 
 type Bubble = {
   id: string;
   role: BubbleRole;
   content: string;
   durationMs: number;
+  opacity: number;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -21,20 +22,18 @@ function prefersReducedMotion(): boolean {
 }
 
 export type FloatingBubblesProps = {
-  messages: ChatMessage[];
+  events: StoreEvent[];
   avoidBottomPx: number;
   maxBubbles?: number;
 };
 
 export function FloatingBubbles({
-  messages,
+  events,
   avoidBottomPx,
   maxBubbles = 14,
 }: FloatingBubblesProps) {
-  const [bubbles, setBubbles] = useState<Bubble[]>([]);
-  const lastSeenMessageIndexRef = useRef(0);
-  const timeoutIdsRef = useRef<number[]>([]);
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -46,54 +45,45 @@ export function FloatingBubbles({
   }, []);
 
   useEffect(() => {
-    // Convert new messages into ephemeral bubbles.
-    const startIdx = lastSeenMessageIndexRef.current;
-    if (messages.length <= startIdx) return;
+    if (typeof window === "undefined") return;
+    const tickMs = reducedMotion ? 500 : 200;
+    const id = window.setInterval(() => setNow(Date.now()), tickMs);
+    return () => window.clearInterval(id);
+  }, [reducedMotion]);
 
-    const newMessages = messages.slice(startIdx);
-    lastSeenMessageIndexRef.current = messages.length;
+  const bubbles = useMemo<Bubble[]>(() => {
+    const baseDurationMs = reducedMotion ? 4200 : 14000;
+    const fadeInPct = 0.08;
+    const fadeOutStartPct = 0.92;
 
-    if (newMessages.length === 0) return;
-
-    setBubbles((prev) => {
-      const next: Bubble[] = [...prev];
-      for (const m of newMessages) {
-        const durationMs = reducedMotion ? 2600 : 7000 + Math.random() * 3500;
-
-        next.push({
-          id: `${m.id}-bubble`,
-          role: m.role,
-          content: m.content,
-          durationMs,
-        });
-      }
-
-      // Cap bubble count for perf, preferring newest.
-      return next.slice(Math.max(0, next.length - maxBubbles));
+    const relevant = events.filter((e) => {
+      if (e._kind === "perception") return !e.internal && e.action === "said";
+      if (e._kind === "interactionRequest") return e.action === "says";
+      return false;
     });
-  }, [messages, maxBubbles, reducedMotion]);
 
-  useEffect(() => {
-    // Cleanup timeouts on unmount.
-    return () => {
-      for (const id of timeoutIdsRef.current) window.clearTimeout(id);
-      timeoutIdsRef.current = [];
-    };
-  }, []);
+    const fresh = relevant.filter((e) => now - e._timestamp >= 0 && now - e._timestamp < baseDurationMs);
+    const visible = fresh.slice(-maxBubbles);
 
-  const scheduledRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const b of bubbles) {
-      if (scheduledRef.current.has(b.id)) continue;
-      scheduledRef.current.add(b.id);
+    return visible.map((e) => {
+      const ageMs = now - e._timestamp;
+      const t = clamp(ageMs / baseDurationMs, 0, 1);
+      const fadeOpacity =
+        t < fadeInPct
+          ? t / fadeInPct
+          : t < fadeOutStartPct
+            ? 1
+            : (1 - t) / (1 - fadeOutStartPct);
 
-      const timeoutId = window.setTimeout(() => {
-        setBubbles((prev) => prev.filter((x) => x.id !== b.id));
-        scheduledRef.current.delete(b.id);
-      }, b.durationMs + 250);
-      timeoutIdsRef.current.push(timeoutId);
-    }
-  }, [bubbles]);
+      return {
+        id: `${e._id}-bubble`,
+        role: e._kind === "interactionRequest" ? "tanaki" : "user",
+        content: e.content,
+        durationMs: baseDurationMs,
+        opacity: clamp(fadeOpacity, 0, 1),
+      };
+    });
+  }, [events, maxBubbles, reducedMotion, now]);
 
   return (
     <div
@@ -123,7 +113,9 @@ export function FloatingBubbles({
                 .join(" ")}
               style={
                 {
-                  ["--tanaki-bubble-duration" as any]: `${b.durationMs}ms`,
+                  // We derive fade/age directly from timestamps, so don't rely on CSS animation state.
+                  animation: "none",
+                  opacity: b.opacity,
                   filter: `opacity(${indexOpacity})`,
                 } as CSSProperties
               }
