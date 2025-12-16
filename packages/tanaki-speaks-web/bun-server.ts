@@ -75,6 +75,74 @@ function jsonError(message: string, status = 400) {
   });
 }
 
+/**
+ * Generate an ETag from file size and mtime.
+ */
+function generateETag(size: number, mtime: number): string {
+  return `"${size.toString(16)}-${mtime.toString(16)}"`;
+}
+
+/**
+ * Serve a static file, checking for pre-compressed .gz version first.
+ * If a .gz file exists and client accepts gzip, serve that instead.
+ * Supports ETag for conditional requests.
+ */
+async function serveStaticFile(
+  filePath: string,
+  req: Request,
+): Promise<Response | null> {
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) return null;
+
+  const etag = generateETag(file.size, file.lastModified);
+
+  // Check If-None-Match for conditional request
+  const ifNoneMatch = req.headers.get("if-none-match");
+  if (ifNoneMatch === etag) {
+    return new Response(null, {
+      status: 304,
+      headers: { ETag: etag },
+    });
+  }
+
+  // Check for pre-compressed version
+  const acceptEncoding = req.headers.get("accept-encoding") || "";
+  if (acceptEncoding.includes("gzip")) {
+    const gzFile = Bun.file(`${filePath}.gz`);
+    if (await gzFile.exists()) {
+      const gzEtag = generateETag(gzFile.size, gzFile.lastModified) + "-gz";
+      
+      // Check ETag for compressed version too
+      if (ifNoneMatch === gzEtag) {
+        return new Response(null, {
+          status: 304,
+          headers: { ETag: gzEtag, Vary: "Accept-Encoding" },
+        });
+      }
+
+      return new Response(gzFile, {
+        headers: {
+          "Content-Type": Bun.file(filePath).type || "application/octet-stream",
+          "Content-Length": gzFile.size.toString(),
+          "Content-Encoding": "gzip",
+          "Cache-Control": "public, max-age=604800",
+          "Vary": "Accept-Encoding",
+          "ETag": gzEtag,
+        },
+      });
+    }
+  }
+
+  // Serve uncompressed with Content-Length for progress tracking
+  return new Response(file, {
+    headers: {
+      "Content-Length": file.size.toString(),
+      "Cache-Control": "public, max-age=604800",
+      "ETag": etag,
+    },
+  });
+}
+
 async function handleTts(req: Request): Promise<Response> {
   void req;
   return jsonError("TTS endpoint removed: audio is streamed from the Soul Engine via ephemeral events.", 404);
@@ -135,7 +203,6 @@ const metricsPort = Number.parseInt(
 );
 const distDir = join(import.meta.dir, "dist");
 const indexPath = join(distDir, "index.html");
-const indexFile = Bun.file(indexPath);
 
 // Ensure the gauge is exported even before any clients connect.
 setConnectedUsers(0);
@@ -221,17 +288,13 @@ Bun.serve<WsData>({
       url.pathname === "/" ? indexPath : safeJoin(distDir, url.pathname);
 
     if (filePath) {
-      const file = Bun.file(filePath);
-      if (await file.exists()) {
-        return new Response(file);
-      }
+      const response = await serveStaticFile(filePath, req);
+      if (response) return response;
     }
 
-    if (await indexFile.exists()) {
-      return new Response(indexFile, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
+    // SPA fallback to index.html
+    const indexResponse = await serveStaticFile(indexPath, req);
+    if (indexResponse) return indexResponse;
 
     return new Response("Missing build output. Run `bun run build`.", {
       status: 500,
